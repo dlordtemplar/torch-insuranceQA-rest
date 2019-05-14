@@ -1,0 +1,9 @@
+flask
+spacy>=2.0.16
+numpy
+torch==1.0.1.post2
+pandas>=0.24.1
+nltk>=3.4
+gensim>=3.6.0
+pyenchant==2.0.0
+scikit_learn>=0.20.0

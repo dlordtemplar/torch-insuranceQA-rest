@@ -10,7 +10,7 @@ from nltk.stem import WordNetLemmatizer
 lemmatizer = WordNetLemmatizer()
 pd.options.mode.chained_assignment = None  # default='warn'
 data_dir_global = "datasets/"
-spacy_model = spacy.load('en_core_web_sm')
+spacy_model = spacy.load('en')
 
 
 # # Reader
