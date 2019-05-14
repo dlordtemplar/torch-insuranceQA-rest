@@ -3,7 +3,7 @@ import string
 import time
 import xml.etree.ElementTree as ET
 
-import enchant
+# import enchant
 import numpy as np
 import pandas as pd
 import spacy
@@ -12,7 +12,7 @@ import spacy
 from nltk.corpus import stopwords
 from nltk.stem.snowball import EnglishStemmer
 
-d = enchant.Dict("en_US")
+# d = enchant.Dict("en_US")
 stemmer = EnglishStemmer()
 nlp = spacy.load('en')
 eng_stopwords = set(stopwords.words("english"))
@@ -111,10 +111,10 @@ class Text():
             self.tokenize()
         self.spellchecked_text = []
         for token in self.tokens:
-            if len(token) > 2 and not d.check(token) and len(d.suggest(token)) > 0:
-                self.spellchecked_text.append(d.suggest(token)[0])
-            else:
-                self.spellchecked_text.append(token)
+            # if len(token) > 2 and not d.check(token) and len(d.suggest(token)) > 0:
+            #     self.spellchecked_text.append(d.suggest(token)[0])
+            # else:
+            self.spellchecked_text.append(token)
         self.spellchecked_text = ' '.join(self.spellchecked_text)
         spellchecked_tokens = [str(token.text) for token in nlp(self.spellchecked_text)]
         return self.spellchecked_text
