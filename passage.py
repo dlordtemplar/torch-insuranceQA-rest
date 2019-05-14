@@ -5,7 +5,7 @@ from operator import itemgetter
 from string import punctuation
 
 import notebook_util
-notebook_util.pick_gpu_lowest_memory()
+notebook_util.setup_one_gpu()
 
 import torch
 import torch.autograd as autograd
