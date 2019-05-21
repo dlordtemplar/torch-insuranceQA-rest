@@ -185,36 +185,8 @@ def handle_requests(request_form, received_question, processed_question):
 
     error = ""
 
-    # if 'model_file' in request_form.keys():
-    #     correct_answer_id = -1
-    #     error = load_model(request_form['model_file'])
-
     if 'attention_threshold' in request_form.keys():
         attention_threshold = int(float(request_form['attention_threshold'])) / 1000
-
-    # if 'use-test1' in request_form.keys() or 'use-test2' in request_form.keys() or 'use-all' in request_form.keys():
-    #     correct_answer_id = -1
-    #     if 'use-all' in request_form.keys():
-    #         if request_form['use-all'] == 'on':
-    #             print("Switched to using all index.")
-    #             storage = FileStorage(WHOOSH_PATH_QA)
-    #             checked = ["", "", "checked"]
-    #     elif 'use-test1' in request_form.keys() and 'use-test2' in request_form.keys():
-    #         if request_form['use-test1'] == 'on' and request_form['use-test2'] == 'on':
-    #             print("Switched to using all tests index.")
-    #             storage = FileStorage(WHOOSH_PATH + "indexdir_tests")
-    #             checked = ["checked", "checked", ""]
-    #     elif 'use-test1' in request_form.keys():
-    #         if request_form['use-test1'] == 'on':
-    #             print("Switched to using test1 index.")
-    #             storage = FileStorage(WHOOSH_PATH + "indexdir_test1")
-    #             checked = ["checked", "", ""]
-    #     elif 'use-test2' in request_form.keys():
-    #         if request_form['use-test2'] == 'on':
-    #             print("Switched to using test2 index.")
-    #             storage = FileStorage(WHOOSH_PATH + "indexdir_test2")
-    #             checked = ["", "checked", ""]
-    #     ix = storage.open_index()
 
     if 'question_input' in request_form.keys():
         correct_answer_id = -1
@@ -236,9 +208,9 @@ def handle_requests(request_form, received_question, processed_question):
             correct_answer_id = -1
 
     if received_question != "..." and valid:
-        model_predict(received_question, processed_question)
+        error = model_predict(received_question, processed_question)
 
-    return received_question, processed_question
+    return received_question, processed_question, error
 
 
 def preprocess_text(text):
@@ -608,7 +580,7 @@ def setup_framework():
 
     if request.method == 'POST':
         if 'received_question' in request.args:
-            received_question, processed_question = handle_requests(request.form, received_question, None)
+            received_question, processed_question, error = handle_requests(request.form, received_question, None)
             return redirect(
                 url_for('passage.process_question', received_question=received_question, processed_question=None))
         else:
@@ -671,7 +643,10 @@ def validate_question(text):
 
 def model_predict(received_question, processed_question):
     """Run a pre-trained loaded model on a received question."""
-    pytorch_predict(received_question, processed_question)
+    error = pytorch_predict(received_question, processed_question)
+    if error:
+        print('model_predict returned an error:', error)
+    return error
 
 
 def pytorch_predict(received_question, processed_question):
@@ -690,7 +665,11 @@ def pytorch_predict(received_question, processed_question):
     print("Processed question:", processed_question)
     print("Attention threshold:", attention_threshold)
 
-    answers, questions = retrieve_candidates(processed_question, received_question)
+    answers, questions, error = retrieve_candidates(processed_question, received_question)
+
+    if error:
+        print(error)
+        return error
 
     # if the question input by the user is the same as one of the retrieved, we know the exact correct answer
     print(processed_question.split())
@@ -735,6 +714,8 @@ def pytorch_predict(received_question, processed_question):
     visible_scores = [[x if x > attention_threshold else 0 for x in y] for y in attention_scores]
 
     highlight_attention(texts, visible_scores, params['max_len'])
+
+    return None
 
 
 # text preprocessing
@@ -797,27 +778,18 @@ def retrieve_candidates(processed_question, received_question):
             if len(results) == 0:
                 cos_scores = [""]
                 error = "<div class=\"alert alert-warning\"> Sorry, no answers were found. Try again? </div>"
-                print('Stat', 5)
-                # return False, error
-                return jsonify({'texts': [],
-                                'val': 1000 * attention_threshold,
-                                'question': received_question.replace("?", "") + "?",
-                                'error': Markup(error),
-                                'checked': checked,
-                                'cos_scores': pd.Series(sorted(cos_scores, reverse=True)).to_json(orient='values'),
-                                'run_time': str(run_time),
-                                'correct_answer_id': correct_answer_id
-                                })
+                print('Stat', 5, 'No results found.')
+                return False, False, error
             else:  # preprocessing of retrieved candidates
                 questions = [res['question'].split() for res in results]
                 answers = [res['answer'].split() for res in results]
-                print('Stat', 2)
-                return answers, questions
+                print('Stat', 2, 'Got results on second try.')
+                return answers, questions, None
         else:  # preprocessing of retrieved candidates
             questions = [res['question'].split() for res in results]
             answers = [res['answer'].split() for res in results]
-            print('Stat', 4)
-            return answers, questions
+            print('Stat', 4, 'Got results on first try.')
+            return answers, questions, None
 
 
 @bp.route('/passage/<received_question>', methods=['GET', 'POST'])
@@ -866,20 +838,32 @@ def process_question(received_question, processed_question=None):
 
     if request.method == 'POST':
         if 'question_input' in request.form.keys():
-            received_question, processed_question = handle_requests(request.form, received_question, None)
+            received_question, processed_question, error = handle_requests(request.form, received_question, None)
             return redirect(
                 url_for('passage.process_question', received_question=received_question, processed_question=None))
         else:
-            handle_requests(request.form, received_question, processed_question)
-            return jsonify({'texts': tag_results,
-                            'val': 1000 * attention_threshold,
-                            'question': received_question.replace("?", "") + "?",
-                            'error': Markup(error),
-                            'checked': checked,
-                            'cos_scores': pd.Series(sorted(cos_scores, reverse=True)).to_json(orient='values'),
-                            'run_time': str(run_time),
-                            'correct_answer_id': correct_answer_id
-                            })
+            # a and b are not used below.
+            a, b, error = handle_requests(request.form, received_question, processed_question)
+            if error:
+                return jsonify({'texts': [],
+                                'val': 1000 * attention_threshold,
+                                'question': received_question.replace("?", "") + "?",
+                                'error': Markup(error),
+                                'checked': checked,
+                                'cos_scores': pd.Series(sorted(cos_scores, reverse=True)).to_json(orient='values'),
+                                'run_time': str(run_time),
+                                'correct_answer_id': correct_answer_id
+                                })
+            else:
+                return jsonify({'texts': tag_results,
+                                'val': 1000 * attention_threshold,
+                                'question': received_question.replace("?", "") + "?",
+                                'error': Markup(error),
+                                'checked': checked,
+                                'cos_scores': pd.Series(sorted(cos_scores, reverse=True)).to_json(orient='values'),
+                                'run_time': str(run_time),
+                                'correct_answer_id': correct_answer_id
+                                })
     else:
         model_predict(received_question, processed_question)
 
